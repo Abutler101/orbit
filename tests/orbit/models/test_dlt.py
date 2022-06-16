@@ -1,4 +1,6 @@
 from copy import copy
+from typing import Tuple
+
 import pytest
 import numpy as np
 
@@ -6,6 +8,7 @@ from orbit.models import DLT
 from orbit.template.dlt import DLTInitializer
 from orbit.constants.constants import PredictionKeys
 from orbit.exceptions import ModelException, PredictionException
+from orbit.utils.dataset import load_iclaims
 
 
 @pytest.mark.parametrize("estimator", ["stan-map", "stan-mcmc"])
@@ -796,3 +799,36 @@ def test_dlt_predict_range(make_weekly_data, idx_range):
     )
     dlt.fit(train_df)
     dlt.predict(predict_df)
+
+
+@pytest.mark.parametrize(
+    "slice_range", [
+        (0, None),
+        (1, None),
+        (0, -1),
+        (36, 72)
+    ],
+    ids=[
+        "all-train",
+        "all-except-first-elem",
+        "all-except-last-elem",
+        "arbitrary-subset",
+    ],
+)
+def test_dlt_predict_on_train_slice(make_weekly_data, slice_range: Tuple[int, int]):
+    # log-transformed data
+    df = load_iclaims()
+    # train-test split
+    test_size = 52
+    train_df = df[:-test_size]
+    test_df = df[-test_size:]
+
+    dlt = DLT(
+        response_col="claims",
+        date_col="week",
+        regressor_col=["trend.unemploy", "trend.filling", "trend.job"],
+        seasonality=52,
+    )
+    dlt.fit(df=train_df)
+    predicted_df = dlt.predict(df=train_df[slice_range[0]:slice_range[1]])
+    print(f"Sample of Prediction:\n{predicted_df.head(5)}")
